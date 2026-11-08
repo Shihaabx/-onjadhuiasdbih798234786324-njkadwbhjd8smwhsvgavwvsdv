@@ -41,7 +41,25 @@ jobs:
           Get-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue |
             Disable-NetFirewallRule
 
-          New-NetFirewallRule -DisplayName "Juraa Tailscale RDP" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389 -RemoteAddress "100.64.0.0/10" -Profile Any | Out-Null
+          # Allow RDP TCP via Tailscale
+          New-NetFirewallRule `
+            -DisplayName "Juraa Tailscale RDP TCP" `
+            -Direction Inbound `
+            -Action Allow `
+            -Protocol TCP `
+            -LocalPort 3389 `
+            -RemoteAddress "100.64.0.0/10" `
+            -Profile Any | Out-Null
+
+          # Allow RDP UDP via Tailscale
+          New-NetFirewallRule `
+            -DisplayName "Juraa Tailscale RDP UDP" `
+            -Direction Inbound `
+            -Action Allow `
+            -Protocol UDP `
+            -LocalPort 3389 `
+            -RemoteAddress "100.64.0.0/10" `
+            -Profile Any | Out-Null
 
           Start-Service TermService -ErrorAction SilentlyContinue
 
