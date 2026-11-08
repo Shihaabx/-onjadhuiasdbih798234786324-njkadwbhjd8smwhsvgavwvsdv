@@ -1,0 +1,67 @@
+
+name: Juraa Windows RDP Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-test:
+    runs-on: windows-2022
+    timeout-minutes: 70
+
+    steps:
+      - name: Connect Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          version: latest
+
+      - name: Enable Secure RDP
+        shell: pwsh
+        env:
+          RDP_PASSWORD: ${{ secrets.RDP_PASSWORD }}
+        run: |
+          if (-not $env:RDP_PASSWORD -or $env:RDP_PASSWORD.Length -lt 16) {
+            throw "Set RDP_PASSWORD secret (16+ characters)"
+          }
+
+          $password = ConvertTo-SecureString $env:RDP_PASSWORD -AsPlainText -Force
+          Set-LocalUser -Name "runneradmin" -Password $password
+
+          $base = "HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server"
+          $rdp = "$base\WinStations\RDP-Tcp"
+
+          Set-ItemProperty -Path $base -Name fDenyTSConnections -Value 0
+          Set-ItemProperty -Path $rdp -Name UserAuthentication -Value 1
+          Set-ItemProperty -Path $rdp -Name SecurityLayer -Value 2
+
+          Get-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue |
+            Disable-NetFirewallRule
+
+          New-NetFirewallRule -DisplayName "Juraa Tailscale RDP" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 3389 -RemoteAddress "100.64.0.0/10" -Profile Any | Out-Null
+
+          Start-Service TermService -ErrorAction SilentlyContinue
+
+      - name: Show PC Information and Keep Alive
+        shell: pwsh
+        run: |
+          $pc = Get-CimInstance Win32_ComputerSystem
+          $ip = tailscale ip -4
+
+          Write-Host "===== JURAA TEST PC ====="
+          Write-Host "IP: $ip"
+          Write-Host "Username: runneradmin"
+          Write-Host "Password: Your RDP_PASSWORD secret"
+          Write-Host "CPU: $($pc.NumberOfLogicalProcessors)"
+          Write-Host "RAM GB: $([math]::Round($pc.TotalPhysicalMemory / 1GB, 2))"
+          Write-Host "========================="
+
+          if (-not (Test-NetConnection 127.0.0.1 -Port 3389 -InformationLevel Quiet)) {
+            throw "RDP service is not listening"
+          }
+
+          Write-Host "RDP ready - test window: 60 minutes"
+          Start-Sleep -Seconds 3600
