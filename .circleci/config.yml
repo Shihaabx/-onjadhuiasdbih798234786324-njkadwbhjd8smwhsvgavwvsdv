@@ -1,0 +1,36 @@
+# CircleCI starter: Windows Server 2022 diagnostics only.
+# This repository currently contains a manually triggered GitHub Actions RDP test
+# but no application source, install/build/test/lint commands, or test suites.
+version: 2.1
+
+jobs:
+  windows-smoke-test:
+    machine:
+      image: windows-server-2022-gui:current
+      shell: powershell.exe -ExecutionPolicy Bypass
+    resource_class: windows.medium
+    steps:
+      - checkout
+      - run:
+          name: Verify Windows runner and inspect hardware
+          command: |
+            $ErrorActionPreference = 'Stop'
+            $os = Get-CimInstance Win32_OperatingSystem
+            $computer = Get-CimInstance Win32_ComputerSystem
+            $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+            $disk = Get-PSDrive -Name C
+            Write-Host "OS: $($os.Caption)"
+            Write-Host "Version: $($os.Version)"
+            Write-Host "CPU: $($cpu.Name)"
+            Write-Host "Logical processors: $($computer.NumberOfLogicalProcessors)"
+            Write-Host "Memory GB: $([math]::Round($computer.TotalPhysicalMemory / 1GB, 2))"
+            Write-Host "Drive C free GB: $([math]::Round($disk.Free / 1GB, 2))"
+            if ($os.Caption -notmatch 'Windows Server 2022') {
+              throw "Expected Windows Server 2022, got: $($os.Caption)"
+            }
+            Write-Host 'Windows Server 2022 smoke test passed.'
+
+workflows:
+  windows-smoke-test:
+    jobs:
+      - windows-smoke-test
